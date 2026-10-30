@@ -1,0 +1,35 @@
+
+{
+  "scenario_name": "AgentWatch Security Demo",
+  "description": "AgentWatch 보안 이벤트 단계별 시연",
+  "events": [
+    {
+      "step": 1,
+      "description": "직원이 승인된 ChatGPT Enterprise를 정상적으로 사용하고 있습니다.",
+      "expected_risk": "LOW",
+      "expected_status": "APPROVED",
+      "event_type": "NORMAL_AI_USAGE"
+    },
+    {
+      "step": 2,
+      "description": "이개발의 MCP 서버가 고객 DB에 접근하여 데이터를 조회하고 있습니다. 접근 권한과 데이터 범위를 확인해야 합니다.",
+      "expected_risk": "HIGH",
+      "expected_status": "WARNING",
+      "event_type": "MCP_DATABASE_ACCESS"
+    },
+    {
+      "step": 3,
+      "description": "퇴사자 김영업의 n8n 자동화가 고객 전화번호를 외부로 전송하는 위험 상황이 발생했습니다.",
+      "expected_risk": "HIGH",
+      "expected_status": "DANGER",
+      "event_type": "SENSITIVE_DATA_EXFILTRATION"
+    },
+    {
+      "step": 4,
+      "description": "박마케팅이 Zapier AI에 사내 메일 접근 권한을 부여했습니다. 승인되지 않은 권한인지 확인해야 합니다.",
+      "expected_risk": "MEDIUM",
+      "expected_status": "WARNING",
+      "event_type": "EXCESSIVE_OAUTH_PERMISSION"
+    }
+  ]
+}

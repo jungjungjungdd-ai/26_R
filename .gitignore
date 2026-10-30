@@ -16,3 +16,16 @@ build/
 .vscode/
 .idea/
 .DS_Store
+# 1. macOS 시스템 환경 설정 및 쓰레기 파일
+.AppleDouble
+.LSOverride
+Icon\r\r
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# 2. Claude Code 관련 꼬리표 파일
+.claude/
+.claude.json
+.claude*

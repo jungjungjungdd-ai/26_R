@@ -1,0 +1,160 @@
+{
+  "scenario_name": "AgentWatch Security Demo",
+  "description": "정상적인 AI 사용부터 비인가 접근 및 민감정보 외부 전송까지 단계별로 확인하는 보안 시연",
+  "steps": [
+    {
+      "step": 1,
+      "description": "정회계가 승인된 ChatGPT Enterprise를 이용해 보고서 문장을 다듬는 정상적인 업무를 수행합니다.",
+      "expected_risk": "LOW",
+      "rows": {
+        "ai_tools": [],
+        "employees": [],
+        "assets": [],
+        "processes": [],
+        "oauth_grants": [],
+        "asset_activities": [
+          {
+            "activity_id": "AC0005",
+            "timestamp": "2026-10-31 09:00:00",
+            "tool_id": "T_CHATGPT_ENT",
+            "asset_id": "A05",
+            "action": "read",
+            "record_count": 1
+          }
+        ],
+        "network_logs": [
+          {
+            "log_id": "N0007",
+            "timestamp": "2026-10-31 09:00:05",
+            "employee_id": "E005",
+            "domain": "chatgpt.com",
+            "bytes_out": 3000,
+            "payload_sample": "보고서 문장 다듬어 줘"
+          }
+        ]
+      }
+    },
+    {
+      "step": 2,
+      "description": "이개발의 MCP 서버가 고객 DB에 접근해 대량의 고객 데이터를 조회하고 일부 데이터를 수정합니다. 접근 범위와 작업 내용을 확인해야 합니다.",
+      "expected_risk": "MEDIUM",
+      "rows": {
+        "ai_tools": [],
+        "employees": [],
+        "assets": [],
+        "processes": [
+          {
+            "proc_id": "P0003",
+            "timestamp": "2026-10-31 09:10:00",
+            "employee_id": "E002",
+            "host": "DEV-07",
+            "process_name": "mcp-server-postgres",
+            "connected_asset_id": "A02"
+          }
+        ],
+        "oauth_grants": [],
+        "asset_activities": [
+          {
+            "activity_id": "AC0006",
+            "timestamp": "2026-10-31 09:10:10",
+            "tool_id": "T_MCP_PG",
+            "asset_id": "A02",
+            "action": "read",
+            "record_count": 1000
+          },
+          {
+            "activity_id": "AC0007",
+            "timestamp": "2026-10-31 09:10:20",
+            "tool_id": "T_MCP_PG",
+            "asset_id": "A02",
+            "action": "write",
+            "record_count": 20
+          }
+        ],
+        "network_logs": [
+          {
+            "log_id": "N0008",
+            "timestamp": "2026-10-31 09:10:25",
+            "employee_id": "E002",
+            "domain": "mcp-pg.ngrok-free.app",
+            "bytes_out": 2100000,
+            "payload_sample": "{\"table\": \"customers\", \"rows\": 1000}"
+          }
+        ]
+      }
+    },
+    {
+      "step": 3,
+      "description": "퇴사자 김영업의 n8n 자동화가 CRM 고객 정보를 읽고 고객 전화번호가 포함된 데이터를 외부로 전송하는 위험 상황이 발생합니다.",
+      "expected_risk": "HIGH",
+      "rows": {
+        "ai_tools": [],
+        "employees": [],
+        "assets": [],
+        "processes": [],
+        "oauth_grants": [],
+        "asset_activities": [
+          {
+            "activity_id": "AC0008",
+            "timestamp": "2026-10-31 09:20:00",
+            "tool_id": "T_N8N",
+            "asset_id": "A01",
+            "action": "read",
+            "record_count": 500
+          }
+        ],
+        "network_logs": [
+          {
+            "log_id": "N0009",
+            "timestamp": "2026-10-31 09:20:05",
+            "employee_id": "E001",
+            "domain": "hooks.n8n.io",
+            "bytes_out": 850000,
+            "payload_sample": "홍길동,010-1234-5678,서울시 강남구 / 김철수,010-9876-5432,부산시 / 이영희,01055556666,대전시"
+          }
+        ]
+      }
+    },
+    {
+      "step": 4,
+      "description": "박마케팅이 Zapier AI에 기밀 정보가 포함된 사내 메일의 읽기 및 전송 권한을 부여했습니다. 해당 권한이 업무상 승인된 것인지 확인해야 합니다.",
+      "expected_risk": "MEDIUM",
+      "rows": {
+        "ai_tools": [],
+        "employees": [],
+        "assets": [],
+        "processes": [],
+        "oauth_grants": [
+          {
+            "grant_id": "G0005",
+            "timestamp": "2026-10-31 09:30:00",
+            "employee_id": "E003",
+            "tool_id": "T_ZAPIER",
+            "asset_id": "A03",
+            "scope": "read,send"
+          }
+        ],
+        "asset_activities": [
+          {
+            "activity_id": "AC0009",
+            "timestamp": "2026-10-31 09:30:10",
+            "tool_id": "T_ZAPIER",
+            "asset_id": "A03",
+            "action": "read",
+            "record_count": 300
+          }
+        ],
+        "network_logs": [
+          {
+            "log_id": "N0010",
+            "timestamp": "2026-10-31 09:30:15",
+            "employee_id": "E003",
+            "domain": "hooks.zapier.com",
+            "bytes_out": 12000,
+            "payload_sample": "주간 회의 일정 공유드립니다"
+          }
+        ]
+      }
+    }
+  ]
+}

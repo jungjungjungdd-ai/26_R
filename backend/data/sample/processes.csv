@@ -1,3 +1,0 @@
-proc_id,timestamp,employee_id,host,process_name,connected_asset_id
-P0001,2026-10-30 22:50:00,E002,DEV-07,mcp-server-postgres,A02
-P0002,2026-10-30 22:55:00,E004,DESIGN-02,photoshop.exe,

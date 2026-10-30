@@ -23,6 +23,7 @@
   "title": "Zapier로 고객 연락처 전송",
   "changed": true,
   "rows_added": 1,
+  "rows_blocked": 0,
   "findings": 5,
   "events": [
     {"event_id": 1, "step": 1, "created_at": "2026-10-31 10:00:01.123", "type": "score_up",
@@ -32,6 +33,9 @@
   ]
 }
 ```
+- **회수된 경로는 건너뜀**: 이번 단계 행 중 `revoked` 상태인 (직원, 도구) 조합의 행은 DB에 넣지 않고 `blocked` 이벤트로 남긴다. `rows_blocked` 가 건너뛴 행 수.
+  - 직원+도구를 알아내는 방법: `network_logs`는 domain → 도구, `oauth_grants`는 tool_id, `processes`는 process_name → 도구.
+  - 회수는 `POST /api/findings/{finding_id}/revoke`. 조치(mitigated)는 차단하지 않는다.
 - 이미 마지막 단계면 변화 없이 `finished: true, changed: false, events: []` (에러 아님).
 - 분석 중 오류가 나면 이번 단계에서 추가한 행을 지우고 단계를 올리지 않는다. 같은 단계를 다시 누르면 된다.
 
@@ -48,7 +52,7 @@
 
 대본이 추가한 행, events, 진행 단계를 지우고 다시 분석한다. 응답은 LIVE-02 형식(`step: 0`).
 다시 step을 누르면 처음과 같은 결과가 나온다.
-※ 시연 중에 누른 "회수/조치 적용" 상태도 함께 처음(open)으로 돌아간다.
+※ 시연 중에 누른 "회수/조치 적용" 상태도 함께 처음(open)으로 돌아가므로, 회수로 막혔던 로그도 다시 들어간다.
 
 ## LIVE-04  변화 목록
 `GET /api/runs/{run_id}/events?since=2026-10-31 10:00:01.123&after_id=7`
@@ -65,6 +69,7 @@
 | `new_finding` | 새 위험 경로 생김 |
 | `score_up` | 기존 경로 점수 상승 |
 | `new_payload_hit` | 새 민감정보 검출 (종류별 건수) |
+| `blocked` | 회수된 경로라서 이번 단계 로그를 넣지 않음. 예: `회수로 차단됨: 김영업 → n8n 전송 로그 N0009 추가 안 함`. `detail` 에 table, row_id, employee_id, tool_id |
 
 ## 에러
 | 상황 | 코드 |

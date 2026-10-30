@@ -114,3 +114,75 @@ def test_revoked_status_survives_step(client):
     items = client.get(f"/api/runs/{run_id}/findings").json()
     now = next(f for f in items if f["tool"]["id"] == "T_N8N" and f["asset"]["id"] == "A01")
     assert now["status"] == "revoked"
+
+
+# ---------------------------------------------------------------- 이슈 #35: 회수된 경로는 로그를 만들지 않는다
+@pytest.fixture
+def n8n_script(tmp_path, monkeypatch):
+    """1단계에 n8n 전송 로그(E001)와 Zapier 전송 로그(E003)가 함께 들어 있는 대본"""
+    import json
+    script = {"steps": [{"title": "n8n·Zapier 전송", "rows": {"network_logs": [
+        {"log_id": "N0009", "timestamp": "2026-10-31 09:00:00", "employee_id": "E001",
+         "domain": "hooks.n8n.io", "bytes_out": 500000, "payload_sample": "김하나,010-1111-2222"},
+        {"log_id": "N0010", "timestamp": "2026-10-31 09:01:00", "employee_id": "E003",
+         "domain": "hooks.zapier.com", "bytes_out": 380000, "payload_sample": "최둘,010-3333-4444"},
+    ]}}]}
+    path = tmp_path / "script.json"
+    path.write_text(json.dumps(script, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(config, "LIVE_SCRIPT_PATH", path)
+
+
+def revoke_n8n(client, run_id):
+    items = client.get(f"/api/runs/{run_id}/findings").json()
+    target = next(f for f in items if f["tool"]["id"] == "T_N8N" and f["asset"]["id"] == "A01")
+    assert client.post(f"/api/findings/{target['finding_id']}/revoke").status_code == 200
+
+
+def log_exists(client, run_id, log_id, table="network_logs"):
+    return client.get(f"/api/logs/{table}/{log_id}", params={"run_id": run_id}).status_code == 200
+
+
+def test_revoked_path_log_is_skipped(client, n8n_script):
+    run_id = analyzed(client)
+    revoke_n8n(client, run_id)
+    r = step(client, run_id)
+
+    assert r["rows_added"] == 1 and r["rows_blocked"] == 1
+    assert not log_exists(client, run_id, "N0009")      # 회수된 n8n 로그는 없음
+    assert log_exists(client, run_id, "N0010")          # 다른 도구 로그는 들어감
+    blocked = [e for e in r["events"] if e["type"] == "blocked"]
+    assert len(blocked) == 1
+    assert "회수로 차단됨" in blocked[0]["message"] and "N0009" in blocked[0]["message"]
+    assert blocked[0]["detail"]["tool_id"] == "T_N8N"
+
+    items = client.get(f"/api/runs/{run_id}/events").json()
+    assert [e["type"] for e in items].count("blocked") == 1
+
+
+def test_not_revoked_path_still_gets_log(client, n8n_script):
+    run_id = analyzed(client)
+    r = step(client, run_id)
+    assert r["rows_added"] == 2 and r["rows_blocked"] == 0
+    assert log_exists(client, run_id, "N0009")
+    assert all(e["type"] != "blocked" for e in r["events"])
+
+
+def test_reset_allows_log_again(client, n8n_script):
+    run_id = analyzed(client)
+    revoke_n8n(client, run_id)
+    step(client, run_id)
+    client.post(f"/api/runs/{run_id}/live/reset")   # reset 하면 회수도 처음으로 돌아간다
+    r = step(client, run_id)
+    assert r["rows_blocked"] == 0 and log_exists(client, run_id, "N0009")
+
+
+def test_revoked_oauth_grant_is_skipped(client):
+    """기본 대본 4단계: 퇴사자 n8n 권한 부여(G0006)도 n8n 회수 뒤에는 들어가지 않는다"""
+    run_id = analyzed(client)
+    revoke_n8n(client, run_id)
+    for _ in range(3):
+        step(client, run_id)
+    r = step(client, run_id)
+    assert r["rows_blocked"] == 1
+    assert [e["type"] for e in r["events"]] == ["blocked"]
+    assert not log_exists(client, run_id, "G0006", "oauth_grants")

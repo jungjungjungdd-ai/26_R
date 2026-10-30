@@ -1,0 +1,18 @@
+# 라이브러리 폴더
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# 빌드 결과물
+dist/
+build/
+
+# 비밀키, 환경변수
+.env
+.env.*
+
+# 기타
+.vscode/
+.idea/
+.DS_Store

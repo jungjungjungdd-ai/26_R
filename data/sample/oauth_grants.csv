@@ -1,0 +1,5 @@
+grant_id,timestamp,employee_id,tool_id,asset_id,scope
+G0001,2026-08-01 10:00:00,E001,T_N8N,A01,"read,send"
+G0002,2026-09-15 14:20:00,E003,T_ZAPIER,A03,"read,send"
+G0003,2026-10-02 09:30:00,E004,T_IMAGE_AI,A04,read
+G0004,2026-07-01 09:00:00,E005,T_CHATGPT_ENT,A05,read

@@ -1,0 +1,48 @@
+{
+  "name": "실시간 시연 대본",
+  "description": "LIVE-01 을 누를 때마다 steps 를 앞에서부터 하나씩 DB에 추가하고 재분석합니다. rows 의 테이블 이름과 열은 업로드 파일 7개와 같습니다. 행 ID(log_id, grant_id 등)는 기존 샘플과 겹치지 않게 반드시 적어야 합니다.",
+  "steps": [
+    {
+      "title": "Zapier로 고객 연락처 전송",
+      "description": "박마케팅이 Zapier AI 웹훅으로 고객 전화번호를 보냅니다. 점수 50점(주의)이 70점(위험)으로 오르고 전화번호가 검출됩니다.",
+      "rows": {
+        "network_logs": [
+          {"log_id": "N0007", "timestamp": "2026-10-31 09:10:00", "employee_id": "E003",
+           "domain": "hooks.zapier.com", "bytes_out": 380000,
+           "payload_sample": "김하나,010-1111-2222,서울시 / 최둘,010-3333-4444,경기도"}
+        ]
+      }
+    },
+    {
+      "title": "이미지 생성 AI가 사내 문서 접근 권한 획득",
+      "description": "최디자인이 이미지 생성 AI에 사내 문서(기밀) 읽기·쓰기 권한을 줍니다. 새 위험 경로가 45점(주의)으로 생깁니다.",
+      "rows": {
+        "oauth_grants": [
+          {"grant_id": "G0005", "timestamp": "2026-10-31 09:20:00", "employee_id": "E004",
+           "tool_id": "T_IMAGE_AI", "asset_id": "A05", "scope": "read,write"}
+        ]
+      }
+    },
+    {
+      "title": "로컬 MCP로 주민번호·이메일 대량 전송",
+      "description": "이개발의 MCP 서버가 고객 DB 내용을 밖으로 보냅니다. 주민등록번호와 이메일이 검출되어 점수 70점이 90점으로 오릅니다.",
+      "rows": {
+        "network_logs": [
+          {"log_id": "N0008", "timestamp": "2026-10-31 09:30:00", "employee_id": "E002",
+           "domain": "mcp-pg.ngrok-free.app", "bytes_out": 900000,
+           "payload_sample": "홍길순,900101-1234567,gil@example.com"}
+        ]
+      }
+    },
+    {
+      "title": "퇴사자 계정으로 n8n이 고객 DB 접근",
+      "description": "퇴사한 김영업의 n8n이 고객 DB까지 읽기·쓰기 권한을 받습니다. 새 경로가 100점(위험, 합계 105점을 100점으로 제한)으로 생깁니다.",
+      "rows": {
+        "oauth_grants": [
+          {"grant_id": "G0006", "timestamp": "2026-10-31 09:40:00", "employee_id": "E001",
+           "tool_id": "T_N8N", "asset_id": "A02", "scope": "read,write"}
+        ]
+      }
+    }
+  ]
+}

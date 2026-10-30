@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from .db import init_db
 from .errors import ApiError, api_error_handler, internal_error_handler
-from .routers import findings, logs, runs, system
+from .routers import findings, live, logs, runs, system
 
 
 
@@ -23,3 +23,4 @@ app.include_router(system.router, prefix="/api")
 app.include_router(runs.router, prefix="/api")
 app.include_router(findings.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
+app.include_router(live.router, prefix="/api")

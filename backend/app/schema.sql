@@ -38,6 +38,35 @@ CREATE TABLE IF NOT EXISTS payload_hits (
     end_pos     INTEGER NOT NULL
 );
 
+-- 실시간 시연 (LIVE-01~04)
+-- 대본을 몇 단계까지 진행했는지
+CREATE TABLE IF NOT EXISTS live_state (
+    run_id      TEXT PRIMARY KEY REFERENCES runs(run_id),
+    step        INTEGER NOT NULL DEFAULT 0,
+    updated_at  TEXT NOT NULL
+);
+
+-- 대본이 원본 테이블에 추가한 행 (reset 할 때 이 행들만 지움)
+CREATE TABLE IF NOT EXISTS live_applied (
+    run_id      TEXT NOT NULL,
+    step        INTEGER NOT NULL,
+    table_name  TEXT NOT NULL,
+    row_id      TEXT NOT NULL,
+    PRIMARY KEY (run_id, table_name, row_id)
+);
+
+-- 재분석 전후를 비교해 찾은 변화
+CREATE TABLE IF NOT EXISTS events (
+    event_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id      TEXT NOT NULL,
+    step        INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,          -- 2026-10-31 10:00:00.123 (밀리초까지)
+    type        TEXT NOT NULL,          -- new_finding / score_up / new_payload_hit
+    finding_id  TEXT,
+    message     TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '{}'   -- JSON
+);
+
 CREATE TABLE IF NOT EXISTS recommendations (
     rec_id          TEXT NOT NULL,
     finding_id      TEXT NOT NULL REFERENCES findings(finding_id),

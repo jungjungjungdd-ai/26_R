@@ -29,3 +29,5 @@ Icon\r\r
 .claude/
 .claude.json
 .claude*
+*.db
+.pytest_cache/

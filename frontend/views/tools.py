@@ -50,8 +50,8 @@ def highlight(text: str, hits: list[dict]) -> str:
             continue
         parts.append(escape(text[e:end]))
         parts.append(
-            f'<mark style="background:#FF4B4B;color:#fff;padding:0 2px;'
-            f'border-radius:3px" title="{escape(h["type"])}">{escape(text[s:e])}</mark>'
+            f'<mark style="background:#FFE5E5;color:#D70015;font-weight:700;padding:2px 6px;border:1px solid #FF3B30;'
+            f'border-radius:6px" title="{escape(h["type"])}">{escape(text[s:e])}</mark>'
         )
         end = s
     parts.append(escape(text[:end]))
@@ -198,7 +198,7 @@ with left:
         types = ", ".join(sorted({h["type"] for h in p["hits"]}))
         st.caption(f"로그 {p['log_id']} · {types}")
         st.markdown(
-            f'<div style="font-family:monospace;background:#111827;padding:8px 12px;'
+            f'<div style="font-family:monospace;background:#FFFFFF;color:#1D1D1F;border:1px solid rgba(0,0,0,0.08);box-shadow:0 2px 10px rgba(0,0,0,0.03);padding:12px 16px;'
             f'border-radius:6px">{highlight(p["text"], p["hits"])}</div>',
             unsafe_allow_html=True,
         )

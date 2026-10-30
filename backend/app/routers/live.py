@@ -17,8 +17,8 @@ import pandas as pd
 from fastapi import APIRouter, Query
 
 from .. import config
-from ..db import RAW_TABLES, connect, save_raw
-from ..engine import loader, pipeline
+from ..db import RAW_TABLES, connect, read_raw, save_raw
+from ..engine import detector, loader, pipeline
 from ..errors import ApiError
 from .common import finding_to_dict, get_run
 
@@ -27,6 +27,7 @@ router = APIRouter(prefix="/runs", tags=["Live"])
 SCRIPT_NAME = "live_script.json"
 
 # events.type 값
+BLOCKED = "blocked"                  # 회수된 경로라서 이번 단계 로그를 넣지 않음
 NEW_FINDING = "new_finding"          # 새 위험 경로가 생김
 SCORE_UP = "score_up"                # 기존 경로의 점수가 올라감
 NEW_PAYLOAD_HIT = "new_payload_hit"  # 새 민감정보가 검출됨
@@ -199,6 +200,71 @@ def record_events(conn: sqlite3.Connection, run_id: str, step_no: int,
     return events
 
 
+# ---------------------------------------------------------------- 회수된 경로 차단
+BLOCK_NOUN = {"network_logs": "전송 로그", "oauth_grants": "권한 부여", "processes": "프로세스 실행"}
+
+
+def row_owner_tool(table: str, row: dict, domain_map: dict, process_map: dict) -> tuple[str, str] | None:
+    """대본 행 하나가 (직원, 도구) 중 누구 것인지. 알 수 없으면 None (그 행은 차단 대상이 아니다)."""
+    emp = str(row.get("employee_id", "")).strip()
+    if table == "network_logs":
+        tool = domain_map.get(str(row.get("domain", "")).strip().lower())
+    elif table == "oauth_grants":
+        tool = str(row.get("tool_id", "")).strip() or None
+    elif table == "processes":
+        tool = process_map.get(str(row.get("process_name", "")).strip())
+    else:
+        return None
+    return (emp, tool) if emp and tool else None
+
+
+def drop_revoked(conn: sqlite3.Connection, run_id: str, spec: dict) -> tuple[dict, list[dict]]:
+    """회수(revoked)된 직원+도구 조합의 행은 빼고 나머지만 돌려준다. 뺀 행은 두 번째 값으로 알려 준다."""
+    revoked = {(r["employee_id"] or "", r["tool_id"]) for r in conn.execute(
+        "SELECT employee_id, tool_id FROM findings WHERE run_id = ? AND status = 'revoked'", (run_id,))}
+    rows = spec.get("rows") or {}
+    if not revoked or not rows:
+        return spec, []
+    domain_map, process_map = detector.build_lookup(read_raw(conn, run_id, "ai_tools"))
+    kept, blocked = {}, []
+    for table, items in rows.items():
+        if table not in RAW_TABLES or not isinstance(items, list):
+            kept[table] = items  # 형식 오류는 apply_rows 가 알려 준다
+            continue
+        id_col = RAW_TABLES[table]
+        kept[table] = []
+        for row in items:
+            owner = row_owner_tool(table, row, domain_map, process_map) if isinstance(row, dict) else None
+            if owner in revoked:
+                blocked.append({"table": table, "row_id": str(row.get(id_col, "")),
+                                "employee_id": owner[0], "tool_id": owner[1]})
+            else:
+                kept[table].append(row)
+    return {**spec, "rows": kept}, blocked
+
+
+def record_blocked(conn: sqlite3.Connection, run_id: str, step_no: int, blocked: list[dict],
+                   after: dict) -> list[dict]:
+    """건너뛴 행을 '회수로 차단됨' 이벤트로 남긴다. after 는 재분석 뒤의 경로(snapshot 의 첫 번째 값)."""
+    created_at = now()
+    events = []
+    for b in blocked:
+        match = [item for key, item in sorted(after.items())
+                 if key[0] == b["employee_id"] and key[1] == b["tool_id"] and item["status"] == "revoked"]
+        item = match[0] if match else None
+        emp = (item["employee"]["name"] if item else None) or b["employee_id"]
+        tool = item["tool"]["name"] if item else b["tool_id"]
+        message = f"회수로 차단됨: {emp} → {tool} {BLOCK_NOUN.get(b['table'], '로그')} {b['row_id']} 추가 안 함"
+        finding_id = item["finding_id"] if item else None
+        cur = conn.execute(
+            "INSERT INTO events (run_id, step, created_at, type, finding_id, message, detail) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (run_id, step_no, created_at, BLOCKED, finding_id, message, json.dumps(b, ensure_ascii=False)))
+        events.append({"event_id": cur.lastrowid, "step": step_no, "created_at": created_at, "type": BLOCKED,
+                       "finding_id": finding_id, "message": message, "detail": b})
+    return events
+
+
 def now() -> str:
     """밀리초까지 적는다. 같은 초 안에 생긴 이벤트도 since 로 구분하기 위해서다."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
@@ -215,12 +281,13 @@ def live_step(run_id: str):
         if step >= len(steps):
             count = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]
             return {**status_dict(run_id, step, steps), "title": None, "changed": False, "rows_added": 0,
-                    "findings": count, "events": []}
+                    "rows_blocked": 0, "findings": count, "events": []}
 
         step_no = step + 1
         before = snapshot(conn, run_id)
+        spec, blocked = drop_revoked(conn, run_id, steps[step])  # 회수된 경로의 로그는 넣지 않는다
         try:
-            rows_added = apply_rows(conn, run_id, step_no, steps[step])
+            rows_added = apply_rows(conn, run_id, step_no, spec)
             conn.commit()  # 추가한 로그와 live_applied 기록을 먼저 확정해 둔다 (실패했을 때 지우기 위해)
             count = pipeline.run_analysis(conn, run_id)
         except Exception:
@@ -231,13 +298,16 @@ def live_step(run_id: str):
             conn.commit()
             raise
         restore_status(conn, run_id, before[0])
-        events = record_events(conn, run_id, step_no, before, snapshot(conn, run_id))
+        after = snapshot(conn, run_id)
+        events = record_events(conn, run_id, step_no, before, after)
+        events += record_blocked(conn, run_id, step_no, blocked, after[0])
         conn.execute(
             "INSERT INTO live_state (run_id, step, updated_at) VALUES (?, ?, ?) "
             "ON CONFLICT(run_id) DO UPDATE SET step = excluded.step, updated_at = excluded.updated_at",
             (run_id, step_no, now()))
     return {**status_dict(run_id, step_no, steps), "title": step_title(steps, step), "changed": bool(events),
-            "rows_added": rows_added, "findings": count, "events": events}
+            "rows_added": rows_added, "rows_blocked": len(blocked), "findings": count,
+            "events": events}
 
 
 @router.get("/{run_id}/live/status")

@@ -1,6 +1,0 @@
-asset_id,name,type,sensitivity
-A01,CRM 고객 정보,saas,개인정보
-A02,고객 DB,db,개인정보
-A03,사내 메일,saas,기밀
-A04,홍보 폴더,drive,일반
-A05,사내 문서,drive,기밀

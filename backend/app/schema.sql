@@ -18,6 +18,16 @@ CREATE TABLE IF NOT EXISTS findings (
     status       TEXT NOT NULL DEFAULT 'open'   -- open / revoked / mitigated
 );
 
+-- 경로 번호 고정용 표. 같은 (직원, 도구, 자산) 경로는 재분석해도 같은 F 번호를 쓴다.
+CREATE TABLE IF NOT EXISTS finding_ids (
+    run_id       TEXT NOT NULL,
+    employee_id  TEXT NOT NULL,         -- 직원이 없으면 '' 로 저장 (PK 에 NULL 이 들어가지 않게)
+    tool_id      TEXT NOT NULL,
+    asset_id     TEXT NOT NULL,
+    seq          INTEGER NOT NULL,      -- F001 의 1
+    PRIMARY KEY (run_id, employee_id, tool_id, asset_id)
+);
+
 CREATE TABLE IF NOT EXISTS finding_reasons (
     reason_id     INTEGER PRIMARY KEY AUTOINCREMENT,
     finding_id    TEXT NOT NULL REFERENCES findings(finding_id),

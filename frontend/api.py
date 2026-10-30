@@ -178,6 +178,8 @@ def upload_run(files: Mapping[str, Any]) -> dict[str, Any]:
             detail={"missing": missing},
         )
     if USE_MOCK:
+        for finding in MOCK_FINDINGS:
+            finding["status"] = "open"
         return {
             "run_id": MOCK_RUN_ID,
             "status": "uploaded",
@@ -311,6 +313,7 @@ def get_tools(run_id: str | None = None) -> list[dict[str, Any]]:
             "assets": [f["asset"]["name"]],
             "score": f["score"],
             "level": f["level"],
+            "status": f["status"],
             "reasons": ["상세 근거는 F2 화면에서 연결 예정"],
         }
         for f in get_findings(target_run_id)
@@ -319,5 +322,14 @@ def get_tools(run_id: str | None = None) -> list[dict[str, Any]]:
 
 def revoke_tool(finding_id: str) -> dict[str, Any]:
     if USE_MOCK:
-        return {"finding_id": finding_id, "status": "revoked"}
+        for finding in MOCK_FINDINGS:
+            if finding["finding_id"] == finding_id:
+                finding["status"] = "revoked"
+                return {"finding_id": finding_id, "status": "revoked"}
+        raise ApiError(
+            status_code=404,
+            code="NOT_FOUND",
+            message="경로가 없습니다",
+            detail={"finding_id": finding_id},
+        )
     return _request("POST", f"/findings/{finding_id}/revoke")

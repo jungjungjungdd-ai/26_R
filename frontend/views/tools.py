@@ -29,11 +29,12 @@ for t in sorted(tools, key=lambda x: x["score"], reverse=True):
     with st.expander(title):
         st.write("**접근 자산:**", ", ".join(t["assets"]))
         st.write("**승인 여부:**", "✅ 회사 공식 승인 도구" if t["approved"] else "🚨 미승인 Shadow AI")
-        st.write("**점수 근거**")
+        st.write("**상세 정보**")
         for reason in t["reasons"]:
             st.write(f"- {reason}")
 
-        if t["id"] in st.session_state.revoked:
+        is_revoked = t["id"] in st.session_state.revoked or t.get("status") == "revoked"
+        if is_revoked:
             st.success("🔒 권한 회수 완료")
         elif not t["approved"] and st.button("권한 회수", key=f"revoke-{t['id']}"):
             try:

@@ -16,3 +16,7 @@ build/
 .vscode/
 .idea/
 .DS_Store
+
+.claude/
+.claude.json
+.claude*

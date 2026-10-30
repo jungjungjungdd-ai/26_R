@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from api import ApiError, MOCK_ROWS, USE_MOCK, analyze, upload_run
+from api import ApiError, USE_MOCK, analyze, upload_run
 
 FILES = {
     "employees": ("직원 (employees.csv)", ["csv"]),

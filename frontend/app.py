@@ -7,5 +7,6 @@ pages = [
     st.Page("views/overview.py", title="개요", icon="📊", default=True),
     st.Page("views/tools.py", title="AI 도구 목록", icon="🤖"),
     st.Page("views/asset_map.py", title="자산 지도", icon="🗺️"),
+    st.Page("views/live.py", title="실시간 모니터링", icon="📡"),
 ]
 st.navigation(pages).run()

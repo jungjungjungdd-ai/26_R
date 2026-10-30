@@ -183,6 +183,8 @@ def upload_run(files: Mapping[str, Any]) -> dict[str, Any]:
         )
     if USE_MOCK:
         MOCK_FINDINGS[:] = copy.deepcopy(_INITIAL_MOCK_FINDINGS)
+        _MOCK_LIVE["step"] = 0  # 새 업로드 = 새 run 이므로 실시간 진행도 처음부터
+        _MOCK_LIVE["events"].clear()
         return {
             "run_id": MOCK_RUN_ID,
             "status": "uploaded",
@@ -595,3 +597,152 @@ def export_run(run_id: str) -> bytes:
         except ValueError:
             raise ApiError(response.status_code, "HTTP_ERROR", f"CSV 내보내기 실패 (HTTP {response.status_code})")
     return response.content
+
+
+# ---- LIVE: 실시간 시연 (LIVE-01~04, 백엔드 LIVE_API_SPEC.md 기준) ----
+# live/status, live/reset → {"run_id", "step", "total", "finished", "last_title", "next_title"}
+# live/step               → 위 내용 + {"title", "changed", "rows_added", "findings", "events": [...]}
+# events 한 건            → {"event_id", "step", "created_at", "type", "finding_id", "message", "detail"}
+#   type: new_finding(새 위험 경로) / score_up(점수 상승) / new_payload_hit(새 민감정보 검출)
+
+
+def _mock_new_finding(n: int, employee: dict, tool: dict, asset: dict,
+                      scopes: list[str], score: int, level: str) -> dict[str, Any]:
+    return {"finding_id": f"{MOCK_RUN_ID}-F{n:03d}", "employee": employee, "tool": tool,
+            "asset": asset, "scopes": scopes, "score": score, "level": level, "status": "open"}
+
+
+# 백엔드 data/sample/live_script.json 과 같은 4단계
+_MOCK_SCENARIO: list[dict[str, Any]] = [
+    {
+        "title": "Zapier로 고객 연락처 전송",
+        "rows_added": 1,
+        "score_up": {"finding_id": f"{MOCK_RUN_ID}-F003", "score": 70, "level": "위험"},
+        "hits": [("N0007", "전화번호", 2)],
+    },
+    {
+        "title": "이미지 생성 AI가 사내 문서 접근 권한 획득",
+        "rows_added": 1,
+        "new": _mock_new_finding(
+            6, {"id": "E004", "name": "최디자인", "status": "재직"},
+            {"id": "T_IMAGE_AI", "name": "이미지 생성 AI", "approved": False},
+            {"id": "A05", "name": "사내 문서", "sensitivity": "기밀"},
+            ["read", "write"], 45, "주의"),
+    },
+    {
+        "title": "로컬 MCP로 주민번호·이메일 대량 전송",
+        "rows_added": 1,
+        "score_up": {"finding_id": f"{MOCK_RUN_ID}-F002", "score": 90, "level": "위험"},
+        "hits": [("N0008", "주민등록번호", 1), ("N0008", "이메일", 1)],
+    },
+    {
+        "title": "퇴사자 계정으로 n8n이 고객 DB 접근",
+        "rows_added": 1,
+        "new": _mock_new_finding(
+            7, {"id": "E001", "name": "김영업", "status": "퇴사"},
+            {"id": "T_N8N", "name": "n8n", "approved": False},
+            {"id": "A02", "name": "고객 DB", "sensitivity": "개인정보"},
+            ["read", "write"], 100, "위험"),
+    },
+]
+
+_MOCK_LIVE: dict[str, Any] = {"step": 0, "events": []}
+
+
+def _path_label(f: dict[str, Any]) -> str:
+    return f"{f['employee']['name']} → {f['tool']['name']} → {f['asset']['name']}"
+
+
+def _mock_live_status() -> dict[str, Any]:
+    step, total = _MOCK_LIVE["step"], len(_MOCK_SCENARIO)
+    return {
+        "run_id": MOCK_RUN_ID,
+        "step": step,
+        "total": total,
+        "finished": step >= total,
+        "last_title": _MOCK_SCENARIO[step - 1]["title"] if step > 0 else None,
+        "next_title": _MOCK_SCENARIO[step]["title"] if step < total else None,
+    }
+
+
+def _mock_add_event(step: int, kind: str, finding_id: str, message: str) -> dict[str, Any]:
+    from datetime import datetime
+
+    event = {
+        "event_id": len(_MOCK_LIVE["events"]) + 1,
+        "step": step,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        "type": kind,
+        "finding_id": finding_id,
+        "message": message,
+        "detail": {},
+    }
+    _MOCK_LIVE["events"].append(event)
+    return event
+
+
+def live_status(run_id: str) -> dict[str, Any]:
+    """LIVE-02 진행 상태 (GET /runs/{run_id}/live/status)."""
+    if not run_id:
+        raise ApiError(404, "NOT_FOUND", "분석 작업이 없습니다", {"run_id": run_id})
+    if USE_MOCK:
+        return _mock_live_status()
+    return _request("GET", f"/runs/{run_id}/live/status")
+
+
+def live_step(run_id: str) -> dict[str, Any]:
+    """LIVE-01 대본의 다음 단계 로그를 넣고 재분석 (POST /runs/{run_id}/live/step)."""
+    if not run_id:
+        raise ApiError(404, "NOT_FOUND", "분석 작업이 없습니다", {"run_id": run_id})
+    if USE_MOCK:
+        if _MOCK_LIVE["step"] >= len(_MOCK_SCENARIO):
+            return {**_mock_live_status(), "title": None, "changed": False, "rows_added": 0,
+                    "findings": len(MOCK_FINDINGS), "events": []}
+        scene = _MOCK_SCENARIO[_MOCK_LIVE["step"]]
+        _MOCK_LIVE["step"] += 1
+        step = _MOCK_LIVE["step"]
+        events = []
+        if "new" in scene and not any(f["finding_id"] == scene["new"]["finding_id"] for f in MOCK_FINDINGS):
+            item = copy.deepcopy(scene["new"])
+            MOCK_FINDINGS.append(item)
+            events.append(_mock_add_event(
+                step, "new_finding", item["finding_id"],
+                f"새 위험 경로: {_path_label(item)} ({item['score']}점, {item['level']})"))
+        if "score_up" in scene:
+            up = scene["score_up"]
+            item = next((f for f in MOCK_FINDINGS if f["finding_id"] == up["finding_id"]), None)
+            if item and up["score"] > item["score"]:
+                before = item["score"]
+                item.update(score=up["score"], level=up["level"])  # 회수·조치 상태는 그대로 유지
+                events.append(_mock_add_event(
+                    step, "score_up", item["finding_id"],
+                    f"점수 상승: {_path_label(item)} {before}점 → {item['score']}점"))
+        for log_id, kind, count in scene.get("hits", []):
+            fid = scene.get("score_up", {}).get("finding_id", "")
+            events.append(_mock_add_event(
+                step, "new_payload_hit", fid, f"새 민감정보 검출: {kind} {count}건 (로그 {log_id})"))
+        return {**_mock_live_status(), "title": scene["title"], "changed": bool(events),
+                "rows_added": scene["rows_added"], "findings": len(MOCK_FINDINGS), "events": events}
+    return _request("POST", f"/runs/{run_id}/live/step")
+
+
+def live_reset(run_id: str) -> dict[str, Any]:
+    """LIVE-03 처음 상태로 (POST /runs/{run_id}/live/reset). 회수·조치 상태도 초기화된다."""
+    if not run_id:
+        raise ApiError(404, "NOT_FOUND", "분석 작업이 없습니다", {"run_id": run_id})
+    if USE_MOCK:
+        _MOCK_LIVE["step"] = 0
+        _MOCK_LIVE["events"].clear()
+        MOCK_FINDINGS[:] = copy.deepcopy(_INITIAL_MOCK_FINDINGS)
+        return _mock_live_status()
+    return _request("POST", f"/runs/{run_id}/live/reset")
+
+
+def get_events(run_id: str, after_id: int | None = None) -> list[dict[str, Any]]:
+    """LIVE-04 변화 목록, 오래된 순 (GET /runs/{run_id}/events?after_id=)."""
+    if not run_id:
+        raise ApiError(404, "NOT_FOUND", "분석 작업이 없습니다", {"run_id": run_id})
+    if USE_MOCK:
+        return [e for e in _MOCK_LIVE["events"] if after_id is None or e["event_id"] > after_id]
+    params = {"after_id": after_id} if after_id is not None else None
+    return _request("GET", f"/runs/{run_id}/events", params=params)

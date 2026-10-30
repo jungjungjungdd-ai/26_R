@@ -127,6 +127,17 @@ def _request(method: str, path: str, **kwargs: Any) -> Any:
                 message=str(error["message"]),
                 detail=error.get("detail") if isinstance(error.get("detail"), dict) else {},
             )
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if response.status_code == 422 and isinstance(detail, list) and detail:
+            first = detail[0] if isinstance(detail[0], dict) else {}
+            loc = ".".join(str(x) for x in first.get("loc", []) if x != "body")
+            msg = first.get("msg", "요청 형식이 올바르지 않습니다")
+            raise ApiError(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message=f"요청 형식 오류 ({loc}): {msg}" if loc else f"요청 형식 오류: {msg}",
+                detail={"errors": detail},
+            )
         raise ApiError(
             status_code=response.status_code,
             code="HTTP_ERROR",

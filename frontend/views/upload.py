@@ -50,6 +50,9 @@ def _execute_upload_and_analyze(files_payload: dict) -> None:
             rows = upload_result.get("rows", {})
             st.session_state.run_id = run_id
             st.session_state.upload_rows = rows
+            st.session_state.pop("mitigations", None)
+            st.session_state.pop("open_logs", None)
+            st.session_state.pop("selected_finding_id", None)
 
             st.write("2/2 AI 도구 사용과 회사 자산 접근 경로를 분석하고 있습니다.")
             analysis_result = analyze(run_id)

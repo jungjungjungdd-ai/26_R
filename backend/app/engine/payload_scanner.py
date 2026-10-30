@@ -15,19 +15,17 @@ HIT_COLUMNS = ["log_id", "type", "start", "end"]
 
 # 종류 이름 → 정규식
 PATTERNS: dict[str, re.Pattern] = {
-    # 전화번호
-    "전화번호": re.compile(
-        r"01[016789]-?\d{3,4}-?\d{4}"
-    ),
-
-    # 주민등록번호: 생년월일 6자리 + 하이픈 + 뒷자리 7자리
     "주민등록번호": re.compile(
-        r"\b\d{6}-[1-4]\d{6}\b"
+    r"(?<!\d)\d{6}-?[1-4]\d{6}(?!\d)"
     ),
 
-    # 이메일
+    "전화번호": re.compile(
+        r"(?<!\d)01[016789][-\s]?\d{3,4}[-\s]?\d{4}(?!\d)"
+    ),
+
     "이메일": re.compile(
-        r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+    r"[a-zA-Z][a-zA-Z0-9._%+-]*"
+    r"@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
     ),
 
     # API 키
@@ -36,10 +34,11 @@ PATTERNS: dict[str, re.Pattern] = {
         r"\bsk-[a-zA-Z0-9_-]{20,}\b|\bAKIA[A-Z0-9]{16}\b"
     ),
 
-    # 소스코드 (선택)
     "소스코드": re.compile(
-        r"\bdef\s+|\bimport\s+|\bSELECT\b.+?\bFROM\b",
-        re.IGNORECASE
+    r"\bdef\s+[a-zA-Z_]\w*\s*\("
+    r"|\bimport\s+[a-zA-Z_][a-zA-Z0-9_.]*"
+    r"|\bSELECT\b.+?\bFROM\b",
+    re.IGNORECASE | re.DOTALL
     ),
 }
 
